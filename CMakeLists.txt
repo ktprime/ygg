@@ -15,6 +15,9 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
           "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
+# If additional include directories were specified, add them
+include_directories(SYSTEM $ENV{INCLUDE})
+
 add_subdirectory(test)
 add_subdirectory(examples)
 
