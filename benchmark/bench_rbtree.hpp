@@ -335,7 +335,7 @@ struct hash<ZipNode<T>>
 };
 
 } // namespace std
-
+	
 template <class MyTreeOptions>
 class YggZipTreeInsertFixture : public YggZipTreeBaseFixture<MyTreeOptions> {
 };
@@ -368,6 +368,98 @@ public:
   std::vector<typename YggZipTreeBaseFixture<MyTreeOptions>::Node *>
       search_values;
 };
+
+/*
+ * Ygg's AvgMinTree fixtures
+ */
+template <class Options>
+class AvgMinTreeNode : public AvgMinTreeNodeBase<AvgMinTreeNode<Options>, Options> {
+private:
+  int value;
+
+public:
+  void
+  set_value(int new_value)
+  {
+    this->value = new_value;
+  }
+
+  int
+  get_value() const
+  {
+    return this->value;
+  }
+
+  bool
+  operator<(const AvgMinTreeNode<Options> & rhs) const
+  {
+    return this->value < rhs.value;
+  }
+};
+
+template <class MyTreeOptions>
+class YggAvgMinTreeBaseFixture : public RBTreeBaseFixture<false> {
+public:
+  using Node = AvgMinTreeNode<MyTreeOptions>;
+  using Tree = AvgMinTree<Node, AvgMinTreeDefaultNodeTraits<Node>, MyTreeOptions>;
+
+  virtual void
+  setUp(const celero::TestFixture::ExperimentValue & number_of_nodes) override
+  {
+    this->RBTreeBaseFixture<false>::setUp(number_of_nodes.Value);
+
+    this->nodes.resize((size_t)number_of_nodes.Value);
+    for (size_t i = 0; i < (size_t)number_of_nodes.Value; ++i) {
+      this->nodes[i].set_value(this->values[i]);
+    }
+  }
+
+  virtual void
+  tearDown() override
+  {
+    this->RBTreeBaseFixture<false>::tearDown();
+
+    this->nodes.clear();
+  }
+
+  std::vector<Node> nodes;
+  Tree t;
+};
+
+
+template <class MyTreeOptions>
+class YggAvgMinTreeInsertFixture : public YggAvgMinTreeBaseFixture<MyTreeOptions> {
+};
+
+template <class MyTreeOptions>
+class YggAvgMinTreeSearchFixture : public YggAvgMinTreeBaseFixture<MyTreeOptions> {
+public:
+  virtual void
+  setUp(const celero::TestFixture::ExperimentValue & number_of_nodes) override
+  {
+    this->YggAvgMinTreeBaseFixture<MyTreeOptions>::setUp(number_of_nodes.Value);
+
+    for (auto & n : this->nodes) {
+      this->t.insert(n);
+      this->search_values.push_back(&n);
+    }
+
+    std::random_shuffle(this->search_values.begin(), this->search_values.end());
+  }
+
+  virtual void
+  tearDown() override
+  {
+    this->t.clear();
+    this->search_values.clear();
+
+    this->YggAvgMinTreeBaseFixture<MyTreeOptions>::tearDown();
+  }
+
+  std::vector<typename YggAvgMinTreeBaseFixture<MyTreeOptions>::Node *>
+      search_values;
+};
+
 
 /*
  * Boost fixtures
@@ -553,6 +645,17 @@ BASELINE_F(Insert, RBTree, YggRBTreeInsertFixture<BasicTreeOptions>, 1000, 1)
   celero::DoNotOptimizeAway(this->t);
 }
 
+BENCHMARK_F(Insert, AvgMin, YggAvgMinTreeInsertFixture<BasicTreeOptions>, 1000, 1)
+{
+  this->t.clear();
+
+  for (auto & n : this->nodes) {
+    this->t.insert(n);
+  }
+  celero::DoNotOptimizeAway(this->t);
+  // this->t.dbg_print_rank_stats();
+}
+
 BENCHMARK_F(Insert, Zip, YggZipTreeInsertFixture<BasicTreeOptions>, 1000, 1)
 {
   this->t.clear();
@@ -663,6 +766,17 @@ BASELINE_F(Search, RBTree, YggRBTreeSearchFixture<BasicTreeOptions>, 30, 50)
   celero::DoNotOptimizeAway(sum);
 }
 
+BENCHMARK_F(Search, AvgMin, YggAvgMinTreeSearchFixture<BasicTreeOptions>, 30, 50)
+{
+  int sum = 0;
+  for (auto & v : this->search_values) {
+    auto it = this->t.find(*v);
+    sum += it->get_value();
+  }
+
+  celero::DoNotOptimizeAway(sum);
+}
+
 BENCHMARK_F(Search, Zip, YggZipTreeSearchFixture<BasicTreeOptions>, 30, 50)
 {
   int sum = 0;
@@ -754,6 +868,14 @@ BASELINE_F(Iteration, RBTree, YggRBTreeSearchFixture<BasicTreeOptions>, 50, 200)
   }
 }
 
+BENCHMARK_F(Iteration, AvgMin, YggAvgMinTreeSearchFixture<BasicTreeOptions>, 50, 200)
+{
+  for (const auto & n : this->t) {
+    // sum += n.value;
+    celero::DoNotOptimizeAway(n);
+  }
+}
+
 BENCHMARK_F(Iteration, Zip, YggZipTreeSearchFixture<BasicTreeOptions>, 50, 200)
 {
   for (const auto & n : this->t) {
@@ -818,6 +940,15 @@ BENCHMARK_F(Iteration, BoostMultiSet, BoostMultiSetSearchFixture, 50, 200)
  */
 
 BASELINE_F(Delete, RBTree, YggRBTreeSearchFixture<BasicTreeOptions>, 1000, 1)
+{
+  for (auto & v : this->search_values) {
+    this->t.remove(*v);
+  }
+
+  celero::DoNotOptimizeAway(this->t);
+}
+
+BENCHMARK_F(Delete, AvgMin, YggAvgMinTreeSearchFixture<BasicTreeOptions>, 1000, 1)
 {
   for (auto & v : this->search_values) {
     this->t.remove(*v);
